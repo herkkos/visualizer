@@ -15,26 +15,24 @@ Overall TODOs:
 
 
 import argparse
-import concurrent
 import cv2
 import scipy
 from scipy.ndimage import gaussian_filter
 from scipy.signal import convolve2d
 import numpy as np
-from math import ceil, floor
+from math import floor
 import matplotlib.pyplot as plt
-import multiprocessing
 from PIL import Image
 from tqdm import tqdm
 
+MAX_ENERGY = 5000000
 FPS = 60
+HIST_LEN = 3
 
-#TODO: Use these as arguments
 OUTPUT_NAME='output.mp4'
-SOUND='./aani.wav'
-IMAGE='./harem.jpg'
 
 def brighten(image, factor):
+    # factor range -0.5, 0.5
     new_image = np.copy(image)
     new_image = new_image * factor
     new_image = new_image / new_image.max()
@@ -102,92 +100,89 @@ def get_intensity(energy):
     else:
         return 5
 
-def get_frame(step_size, spinner, carrousel, im, data):
-    low_band = data[0:1,:].mean()
-    midlow_band = data[1:3].mean()
-    midmid_band = data[3:6].mean()
-    midhigh_band = data[6:10].mean()
-    high_band = data[10:,:].mean()
-
-    hsv_im = cv2.cvtColor(im, cv2.COLOR_RGB2HSV )
-    sobel_x = apply_kernel(hsv_im, np.array([[1, 2, 1], 
-                                          [0, 0, 0],
-                                          [-1, -2, -1]]))
-    sobel_y = apply_kernel(hsv_im, np.array([[1, 0, -1],
-                                          [2, 0, -2],
-                                          [1, 0, -1]]))
-    sobel = combine_images(sobel_x, sobel_y)
-    hue_sobel = sobel[:,:,0]
-    hue_sobel[hue_sobel<0] = 0
-    hue_sobel = hue_sobel / hue_sobel.mean()
-    hue_sobel = blur(hue_sobel, get_intensity(midmid_band))
-    sat_sobel = sobel[:,:,1]
-    sat_sobel[sat_sobel<0] = 0
-    sat_sobel = sat_sobel / sat_sobel.mean()
-    sat_sobel = blur(sat_sobel, get_intensity(midhigh_band))
-    val_sobel = sobel[:,:,2]
-    val_sobel[val_sobel<0] = 0
-    val_sobel = val_sobel / val_sobel.mean()
-    val_sobel = blur(val_sobel, get_intensity(high_band))
-
-    sat_effects, rest = split_image(im, sat_sobel)
-    val_effects, rest = split_image(rest, val_sobel)
-    hue_effects, rest = split_image(rest, hue_sobel)
-
-    colored = color_effect(hue_effects, carrousel, get_intensity(midlow_band))
-    satured = saturation_effect(colored, get_intensity(midlow_band))
-    hue_mask = satured / 255
-
-    brightened = color_effect(sat_effects, carrousel, get_intensity(midlow_band))
-    satured = saturation_effect(brightened, get_intensity(midlow_band))
-    sat_mask = satured / 255
-
-    contrasted = color_effect(val_effects, carrousel, get_intensity(midlow_band))
-    satured = saturation_effect(contrasted, get_intensity(midlow_band))
-    val_mask = satured / 255
-
-    mask = combine_images(hue_mask, sat_mask)
-    mask = combine_images(mask, val_mask)
-    
-    rest = blur(rest, get_intensity(low_band))
-    rest = rest / 255
-
-    added = combine_images(rest, mask)
-    added[added>1] = 1
-    added[added<0] = 0
-    added = added * 255
-    added = added.astype('uint8')
-    added = cv2.cvtColor(added, cv2.COLOR_RGB2BGR)
-    return added
-
-
 def animate(spec, im, step_size, seed):
-    n_proc = multiprocessing.cpu_count() - 1
+    i = 0
     
     spinner = True
     carrousel = 0
-    
+
     fourcc = cv2.VideoWriter_fourcc(*'XVID')
     video = cv2.VideoWriter(OUTPUT_NAME, fourcc, FPS, im.shape[:2])
+
+    with tqdm(total=spec.shape[1]) as pbar:
+        while i < spec.shape[1]:
+            i = min(spec.shape[1], i + step_size)
+            pbar.update(step_size)
+            window = spec[:, floor(i - step_size):floor(i)]
     
-    batches = [spec[:, floor(i - step_size):floor(i)] for i in np.linspace(step_size, spec.shape[1], ceil(spec.shape[1] / step_size))]
+            spinner = not spinner
+            
+            carrousel = carrousel + 1
+            if carrousel > 255:
+                carrousel = 0
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=n_proc) as executor:
-        #TODO: submit modified function (can't remember what it is called)
-        #TODO: progress bar
-                
-        train_futures = {executor.submit(get_frame, step_size, spinner, carrousel, im, data): data for data in batches}
-        for future in concurrent.futures.as_completed(train_futures):
-            frame = future.result()
-            video.write(frame)
+            low_band = window[0:1,:].mean()
+            midlow_band = window[1:3].mean()
+            midmid_band = window[3:6].mean()
+            midhigh_band = window[6:10].mean()
+            high_band = window[10:,:].mean()
     
+            hsv_im = cv2.cvtColor(im, cv2.COLOR_RGB2HSV )
+            sobel_x = apply_kernel(hsv_im, np.array([[1, 2, 1], 
+                                                  [0, 0, 0],
+                                                  [-1, -2, -1]]))
+            sobel_y = apply_kernel(hsv_im, np.array([[1, 0, -1],
+                                                  [2, 0, -2],
+                                                  [1, 0, -1]]))
+            sobel = combine_images(sobel_x, sobel_y)
+            hue_sobel = sobel[:,:,0]
+            hue_sobel[hue_sobel<0] = 0
+            hue_sobel = hue_sobel / hue_sobel.mean()
+            hue_sobel = blur(hue_sobel, get_intensity(midmid_band))
+            sat_sobel = sobel[:,:,1]
+            sat_sobel[sat_sobel<0] = 0
+            sat_sobel = sat_sobel / sat_sobel.mean()
+            sat_sobel = blur(sat_sobel, get_intensity(midhigh_band))
+            val_sobel = sobel[:,:,2]
+            val_sobel[val_sobel<0] = 0
+            val_sobel = val_sobel / val_sobel.mean()
+            val_sobel = blur(val_sobel, get_intensity(high_band))
+    
+            sat_effects, rest = split_image(im, sat_sobel)
+            val_effects, rest = split_image(rest, val_sobel)
+            hue_effects, rest = split_image(rest, hue_sobel)
+    
+            colored = color_effect(hue_effects, carrousel, get_intensity(midlow_band))
+            satured = saturation_effect(colored, get_intensity(midlow_band))
+            hue_mask = satured / 255
+    
+            brightened = color_effect(sat_effects, carrousel, get_intensity(midlow_band))
+            satured = saturation_effect(brightened, get_intensity(midlow_band))
+            sat_mask = satured / 255
+    
+            contrasted = color_effect(val_effects, carrousel, get_intensity(midlow_band))
+            satured = saturation_effect(contrasted, get_intensity(midlow_band))
+            val_mask = satured / 255
+    
+            mask = combine_images(hue_mask, sat_mask)
+            mask = combine_images(mask, val_mask)
+            
+            rest = blur(rest, get_intensity(low_band))
+            rest = rest / 255
+    
+            added = combine_images(rest, mask)
+            added[added>1] = 1
+            added[added<0] = 0
+            added = added * 255
+            added = added.astype('uint8')
+            added = cv2.cvtColor(added, cv2.COLOR_RGB2BGR)
+            video.write(added)
+
     video.release()
     
 
 def main(args):
-    samplerate, data = scipy.io.wavfile.read(SOUND)
-    
-    # data = data[1764000:2000000,:]
+    samplerate, data = scipy.io.wavfile.read('./aani.wav')
 
     n_frames = (data.shape[0] / samplerate) * FPS
 
@@ -198,7 +193,8 @@ def main(args):
     step_size = spec.shape[1] / n_frames
     
     #TODO: support for varible channel images
-    im = np.array(Image.open(IMAGE))
+    im = np.array(Image.open('./harem.jpg'))
+    # im = np.array(Image.open('./kuva.png'))[:,:,:3]
     im = cv2.resize(im, (480, 480))
     plt.imshow(im)
 
