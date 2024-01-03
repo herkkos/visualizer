@@ -29,20 +29,19 @@ MAX_ENERGY = 5000000
 FPS = 60
 HIST_LEN = 3
 
-OUTPUT_NAME='output.mp4'
+OUTPUT_NAME='juska.mp4'
 
 def brighten(image, factor):
-    # factor range -0.5, 0.5
     new_image = np.copy(image)
     new_image = new_image * factor
-    new_image = new_image / new_image.max()
+    new_image[new_image>1] = 1
 
     return new_image
 
 def adjust_contrast(image, factor, mid):
     new_image = (image - mid) * factor + mid
+    new_image[new_image>1] = 1
     new_image[new_image<0] = 0
-    new_image = new_image / new_image.max()
     return new_image
 
 def color_effect(image, carrousel, factor):
@@ -95,7 +94,7 @@ def get_low_intensity(energy):
         return 3
     else:
         return 3
-    
+
 def get_midlow_intensity(energy):
     if energy < 100000:
         return 0
@@ -105,7 +104,7 @@ def get_midlow_intensity(energy):
         return 3
     else:
         return 3
-    
+
 def get_midmid_intensity(energy):
     if energy < 50000:
         return 0
@@ -115,7 +114,7 @@ def get_midmid_intensity(energy):
         return 3
     else:
         return 3
-    
+
 def get_midhigh_intensity(energy):
     if energy < 50000:
         return 0
@@ -125,7 +124,7 @@ def get_midhigh_intensity(energy):
         return 3
     else:
         return 3
-    
+
 def get_high_intensity(energy):
     if energy < 1500:
         return 0
@@ -150,19 +149,19 @@ def animate(spec, im, step_size, seed):
             i = min(spec.shape[1], i + step_size)
             pbar.update(step_size)
             window = spec[:, floor(i - step_size):floor(i)]
-    
+
             spinner = not spinner
             
             carrousel = carrousel + 1
             if carrousel > 255:
                 carrousel = 0
-    
+
             low_intensity = get_low_intensity( window[0:1,:].mean() )
             midlow_intensity= get_midlow_intensity( window[1:3].mean() )
             midmid_intensity= get_midmid_intensity( window[3:6].mean() ) 
             midhigh_intensity= get_midhigh_intensity( window[6:10].mean() )
             high_intensity= get_high_intensity( window[10:,:].mean() )
-    
+
             hsv_im = cv2.cvtColor(im, cv2.COLOR_RGB2HSV )
             sobel_x = apply_kernel(hsv_im, np.array([[1, 2, 1], 
                                                   [0, 0, 0],
@@ -178,35 +177,37 @@ def animate(spec, im, step_size, seed):
             sat_sobel = sobel[:,:,1]
             sat_sobel[sat_sobel<0] = 0
             sat_sobel = sat_sobel / sat_sobel.mean()
-            sat_sobel = blur(sat_sobel, midhigh_intensity)
+            sat_sobel = blur(sat_sobel, midhigh_intensity*2)
             val_sobel = sobel[:,:,2]
             val_sobel[val_sobel<0] = 0
             val_sobel = val_sobel / val_sobel.mean()
-            val_sobel = blur(val_sobel, high_intensity)
-    
+            val_sobel = blur(val_sobel, midhigh_intensity*2)
+
             sat_effects, rest = split_image(im, sat_sobel)
             val_effects, rest = split_image(rest, val_sobel)
             hue_effects, rest = split_image(rest, hue_sobel)
-    
-            colored = color_effect(hue_effects, carrousel, midlow_intensity)
-            satured = saturation_effect(colored, midlow_intensity)
+
+            colored = color_effect(hue_effects, carrousel, midhigh_intensity)
+            satured = saturation_effect(colored, midhigh_intensity)
             hue_mask = satured / 255
-    
-            brightened = color_effect(sat_effects, carrousel, midlow_intensity)
-            satured = saturation_effect(brightened, midlow_intensity)
+
+            brightened = color_effect(sat_effects, carrousel, midmid_intensity)
+            satured = saturation_effect(brightened, midmid_intensity)
             sat_mask = satured / 255
-    
+
             contrasted = color_effect(val_effects, carrousel, midlow_intensity)
             satured = saturation_effect(contrasted, midlow_intensity)
             val_mask = satured / 255
-    
+
+
             mask = combine_images(hue_mask, sat_mask)
             mask = combine_images(mask, val_mask)
-            
-            rest = blur(rest, low_intensity)
+
             rest = rest / 255
-    
+            rest = blur(rest, low_intensity)
+
             added = combine_images(rest, mask)
+            added = adjust_contrast(added, 1 + high_intensity*0.5, added.mean())            
             added[added>1] = 1
             # added[added<0] = 0
             added = added * 255
@@ -215,7 +216,7 @@ def animate(spec, im, step_size, seed):
             video.write(added)
 
     video.release()
-    
+
 
 def main(args):
     samplerate, data = scipy.io.wavfile.read('./aani.wav')
@@ -225,12 +226,13 @@ def main(args):
 
     #TODO: split into two channels
     spec = plt.specgram(data[:,0], Fs=samplerate)[0]
-    
+
     step_size = spec.shape[1] / n_frames
-    
+
     im = np.array(Image.open('./harem.jpg'))[:,:,:3]
     # im = np.array(Image.open('./kuva.png'))[:,:,:3]
-    im = cv2.resize(im, (480, 480))
+    im = cv2.resize(im, (320, 320))
+    # im = cv2.resize(im, (640, 640))
     plt.imshow(im)
 
     animate(spec, im, step_size, 1)
