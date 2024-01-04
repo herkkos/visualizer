@@ -25,9 +25,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 from tqdm import tqdm
 
-MAX_ENERGY = 5000000
 FPS = 60
-HIST_LEN = 3
 
 OUTPUT_NAME='juska.mp4'
 
@@ -94,36 +92,36 @@ def get_low_intensity(energy):
         return 3
 
 def get_midlow_intensity(energy):
-    if energy < 100000:
+    if energy < 50000:
         return 0
     elif energy > 300000:
         return 3
     else:
-        return 3*(energy-100000) / 200000
+        return 3*(energy-50000) / 200000
 
 def get_midmid_intensity(energy):
-    if energy < 50000:
+    if energy < 25000:
         return 0
     elif energy > 150000:
         return 3
     else:
-        return 3*(energy-50000) / 150000
+        return 3*(energy-25000) / 150000
 
 def get_midhigh_intensity(energy):
-    if energy < 50000:
+    if energy < 25000:
         return 0
     elif energy > 90000:
         return 3
     else:
-        return 3*(energy-50000) / 90000
+        return 3*(energy-25000) / 90000
 
 def get_high_intensity(energy):
-    if energy < 1500:
+    if energy < 750:
         return 0
     elif energy > 4500:
         return 3
     else:
-        return 3*(energy-1500) / 4500
+        return 3*(energy-750) / 4500
 
 
 def animate(spec, im, step_size, seed):
@@ -198,9 +196,8 @@ def animate(spec, im, step_size, seed):
             rest = blur(rest, low_intensity)
 
             added = combine_images(rest, mask)
-            added = adjust_contrast(added, 1 + midmid_intensity*0.5, added.mean())            
+            added = adjust_contrast(added, 1 + midmid_intensity*0.2, added.mean())
             added[added>1] = 1
-            # added[added<0] = 0
             added = added * 255
             added = added.astype('uint8')
             added = cv2.cvtColor(added, cv2.COLOR_RGB2BGR)
@@ -211,7 +208,7 @@ def animate(spec, im, step_size, seed):
 
 def main(args):
     samplerate, data = scipy.io.wavfile.read('./aani.wav')
-    # data = data[2000000:4000000]
+    # data = data[0:2000000]
 
     n_frames = (data.shape[0] / samplerate) * FPS
 
@@ -222,7 +219,7 @@ def main(args):
 
     im = np.array(Image.open('./harem.jpg'))[:,:,:3]
     im = cv2.resize(im, (320, 320))
-    # im = cv2.resize(im, (640, 640))
+    im = cv2.resize(im, (640, 640))
     plt.imshow(im)
 
     animate(spec, im, step_size, 1)
