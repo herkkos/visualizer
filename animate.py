@@ -177,7 +177,7 @@ def animate(spec, im, step_size, seed):
             sat_sobel = sobel[:,:,1]
             sat_sobel[sat_sobel<0] = 0
             sat_sobel = sat_sobel / sat_sobel.mean()
-            sat_sobel = blur(sat_sobel, midhigh_intensity*2)
+            sat_sobel = blur(sat_sobel, high_intensity*2)
             val_sobel = sobel[:,:,2]
             val_sobel[val_sobel<0] = 0
             val_sobel = val_sobel / val_sobel.mean()
@@ -191,8 +191,8 @@ def animate(spec, im, step_size, seed):
             satured = saturation_effect(colored, midhigh_intensity)
             hue_mask = satured / 255
 
-            brightened = color_effect(sat_effects, carrousel, midmid_intensity)
-            satured = saturation_effect(brightened, midmid_intensity)
+            brightened = color_effect(sat_effects, carrousel, high_intensity)
+            satured = saturation_effect(brightened, high_intensity)
             sat_mask = satured / 255
 
             contrasted = color_effect(val_effects, carrousel, midlow_intensity)
@@ -207,7 +207,7 @@ def animate(spec, im, step_size, seed):
             rest = blur(rest, low_intensity)
 
             added = combine_images(rest, mask)
-            added = adjust_contrast(added, 1 + high_intensity*0.5, added.mean())            
+            added = adjust_contrast(added, 1 + midmid_intensity*0.5, added.mean())            
             added[added>1] = 1
             # added[added<0] = 0
             added = added * 255
