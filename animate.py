@@ -92,36 +92,28 @@ def get_low_intensity(energy):
         return 3
 
 def get_midlow_intensity(energy):
-    if energy < 50000:
-        return 0
-    elif energy > 300000:
+    if energy > 300000:
         return 3
     else:
-        return 3*(energy-50000) / 200000
+        return (3*energy) / 200000
 
 def get_midmid_intensity(energy):
-    if energy < 25000:
-        return 0
-    elif energy > 150000:
+    if energy > 150000:
         return 3
     else:
-        return 3*(energy-25000) / 150000
+        return (3*energy) / 150000
 
 def get_midhigh_intensity(energy):
-    if energy < 25000:
-        return 0
-    elif energy > 90000:
+    if energy > 90000:
         return 3
     else:
-        return 3*(energy-25000) / 90000
+        return (3*energy) / 90000
 
 def get_high_intensity(energy):
-    if energy < 750:
-        return 0
-    elif energy > 4500:
+    if energy > 4500:
         return 3
     else:
-        return 3*(energy-750) / 4500
+        return (3*energy) / 4500
 
 
 def animate(spec, im, step_size, seed):
@@ -218,7 +210,7 @@ def main(args):
     step_size = spec.shape[1] / n_frames
 
     im = np.array(Image.open('./harem.jpg'))[:,:,:3]
-    im = cv2.resize(im, (320, 320))
+    # im = cv2.resize(im, (320, 320))
     im = cv2.resize(im, (640, 640))
     plt.imshow(im)
 
